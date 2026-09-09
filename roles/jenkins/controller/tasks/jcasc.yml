@@ -1,0 +1,100 @@
+---
+- name: Ensure Jenkins SSH directory exists
+  file:
+    path: /var/lib/jenkins/.ssh
+    state: directory
+    owner: jenkins
+    group: jenkins
+    mode: "0700"
+  become: true
+  tags: jcasc
+
+- name: Generate SSH key for Jenkins worker access
+  command:
+    cmd: ssh-keygen -t ed25519 -N "" -f /var/lib/jenkins/.ssh/id_ed25519
+    creates: /var/lib/jenkins/.ssh/id_ed25519
+  become: true
+  tags: jcasc
+
+- name: Set ownership and permissions on Jenkins worker SSH keys
+  file:
+    path: "{{ item.path }}"
+    state: file
+    owner: jenkins
+    group: jenkins
+    mode: "{{ item.mode }}"
+  loop:
+    - path: /var/lib/jenkins/.ssh/id_ed25519
+      mode: "0600"
+    - path: /var/lib/jenkins/.ssh/id_ed25519.pub
+      mode: "0644"
+  become: true
+  tags: jcasc
+
+- name: Read Jenkins worker SSH private key
+  slurp:
+    src: /var/lib/jenkins/.ssh/id_ed25519
+  register: jenkins_worker_private_key_file
+  become: true
+  no_log: true
+  tags: jcasc
+
+- name: Read Jenkins worker SSH public key
+  slurp:
+    src: /var/lib/jenkins/.ssh/id_ed25519.pub
+  register: jenkins_worker_public_key_file
+  become: true
+  tags: jcasc
+
+- name: Store Jenkins worker SSH key material for this run
+  set_fact:
+    jenkins_worker_private_key: "{{ jenkins_worker_private_key_file.content | b64decode }}"
+    jenkins_worker_public_key: "{{ jenkins_worker_public_key_file.content | b64decode | trim }}"
+  no_log: true
+  tags: jcasc
+
+- name: Create JCasC directory
+  file:
+    path: /var/lib/jenkins/casc_configs
+    state: directory
+    owner: jenkins
+    group: jenkins
+    mode: "0755"
+  become: true
+  tags: jcasc
+
+- name: Copy JCasC template
+  template:
+    src: jenkins.yaml
+    dest: /var/lib/jenkins/casc_configs/jenkins.yaml
+    owner: jenkins
+    group: jenkins
+    mode: "0644"
+  become: true
+  notify: Restart Jenkins
+  tags: jcasc
+
+- name: Ensure systemd override directory for Jenkins exists
+  file:
+    path: /etc/systemd/system/jenkins.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  tags: jcasc
+
+- name: Configure CASC_JENKINS_CONFIG for Jenkins
+  copy:
+    dest: /etc/systemd/system/jenkins.service.d/override.conf
+    content: |
+      [Service]
+      Environment="CASC_JENKINS_CONFIG=/var/lib/jenkins/casc_configs/jenkins.yaml"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify:
+    - Reload systemd
+    - Restart Jenkins
+  tags: jcasc

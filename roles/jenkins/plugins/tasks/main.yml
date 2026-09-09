@@ -1,0 +1,89 @@
+---
+# =====================================================
+# Jenkins Plugins Installation
+# (Run AFTER JCasC has been applied)
+# =====================================================
+
+# 1. Ensure Jenkins service is running
+# BẮT BUỘC phải start Jenkins trước khi wait_for
+- name: Ensure Jenkins service is started
+  systemd:
+    name: jenkins
+    state: started
+  become: true
+  tags: jenkins_plugins
+
+
+# 2. Wait until Jenkins HTTP port is available
+- name: Wait for Jenkins port to be available
+  wait_for:
+    host: 127.0.0.1
+    port: 8080
+    delay: 5
+    timeout: 300
+  become: true
+  tags: jenkins_plugins
+
+
+# 3. Ensure Jenkins-related directories exist
+- name: Ensure Jenkins directories exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: jenkins
+    group: jenkins
+    mode: '0755'
+  loop:
+    - /opt/jenkins
+    - /var/lib/jenkins/plugins
+  become: true
+  tags: jenkins_plugins
+
+
+# 4. Download Jenkins Plugin Installation Manager (pinned version)
+- name: Download Jenkins Plugin Manager
+  get_url:
+    url: https://github.com/jenkinsci/plugin-installation-manager-tool/releases/download/2.13.2/jenkins-plugin-manager-2.13.2.jar
+    dest: /opt/jenkins/jenkins-plugin-manager.jar
+    owner: jenkins
+    group: jenkins
+    mode: '0755'
+  become: true
+  tags: jenkins_plugins
+
+
+# 5. Copy plugin list
+- name: Copy Jenkins plugin list
+  copy:
+    src: plugins.txt
+    dest: /var/lib/jenkins/plugins.txt
+    owner: jenkins
+    group: jenkins
+    mode: '0644'
+  become: true
+  tags: jenkins_plugins
+
+
+# 6. Install Jenkins plugins (idempotent)
+- name: Install Jenkins plugins
+  command: >
+    java -jar /opt/jenkins/jenkins-plugin-manager.jar
+    --plugin-file /var/lib/jenkins/plugins.txt
+    --plugin-download-directory /var/lib/jenkins/plugins
+  args:
+    creates: /var/lib/jenkins/plugins/.plugins_installed
+  notify: Restart Jenkins
+  become: true
+  tags: jenkins_plugins
+
+
+# 7. Mark plugin installation as done
+- name: Mark plugin installation done
+  file:
+    path: /var/lib/jenkins/plugins/.plugins_installed
+    state: touch
+    owner: jenkins
+    group: jenkins
+    mode: '0644'
+  become: true
+  tags: jenkins_plugins

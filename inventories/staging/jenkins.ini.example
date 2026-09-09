@@ -1,0 +1,9 @@
+[jenkins_master]
+jenkins-master ansible_host=10.0.22.10 ansible_user=ubuntu
+
+[jenkins_workers]
+jenkins-worker ansible_host=10.0.22.11 ansible_user=ubuntu
+
+[jenkins_nodes:children]
+jenkins_master
+jenkins_workers

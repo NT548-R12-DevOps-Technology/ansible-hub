@@ -1,0 +1,10 @@
+---
+jenkins_worker_inventory_host: "{{ groups['jenkins_workers'][0] }}"
+jenkins_worker_host: "{{ hostvars[jenkins_worker_inventory_host].ansible_host | default(jenkins_worker_inventory_host) }}"
+jenkins_worker_port: 22
+
+# Optional credentials. Define them in an Ansible Vault file when needed.
+github_user: ""
+github_token: ""
+dockerhub_user: ""
+dockerhub_token: ""

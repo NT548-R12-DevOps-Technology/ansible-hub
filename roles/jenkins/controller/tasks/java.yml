@@ -1,0 +1,24 @@
+---
+- name: Remove old Java versions
+  apt:
+    name:
+      - openjdk-11-jdk
+      - openjdk-17-jdk
+    state: absent
+  become: true
+  tags: java
+
+- name: Install Java 21
+  apt:
+    name: openjdk-21-jdk
+    state: present
+    update_cache: true
+  become: true
+  tags: java
+
+- name: Set Java 21 as the default Java version
+  alternatives:
+    name: java
+    path: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+  become: true
+  tags: java

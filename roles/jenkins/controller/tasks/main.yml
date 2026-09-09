@@ -1,0 +1,12 @@
+---
+- import_tasks: java.yml
+  tags:
+    - java
+
+- import_tasks: jenkins.yml
+  tags:
+    - jenkins
+
+- import_tasks: jcasc.yml
+  tags:
+    - jcasc

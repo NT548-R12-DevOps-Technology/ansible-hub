@@ -1,0 +1,60 @@
+jenkins:
+  systemMessage: "Jenkins cluster provisioned by Ansible + JCasC (AWS staging)"
+
+  # Controller does not run jobs
+  numExecutors: 0
+
+  nodes:
+    - permanent:
+        name: "jenkins-worker"
+        nodeDescription: "CI worker provisioned via Ansible + JCasC"
+        labelString: "docker ci linux"
+        remoteFS: "/home/jenkins/jenkins-agent"
+        numExecutors: 2
+        launcher:
+          ssh:
+            host: "{{ jenkins_worker_host }}"
+            port: {{ jenkins_worker_port }}
+            credentialsId: "jenkins-worker-ssh"
+            launchTimeoutSeconds: 60
+            sshHostKeyVerificationStrategy:
+              nonVerifyingKeyVerificationStrategy: {}
+
+# =====================================================
+# Credentials (managed fully by JCasC)
+# DO NOT create or modify manually via Jenkins UI
+# =====================================================
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+
+          # 1. SSH private key for connecting Jenkins controller to worker nodes
+          - basicSSHUserPrivateKey:
+              scope: SYSTEM
+              id: "jenkins-worker-ssh"
+              username: "jenkins"
+              privateKeySource:
+                directEntry:
+                  privateKey: |
+                    {{ jenkins_worker_private_key | indent(20) }}
+
+          # 2. GitHub Personal Access Token (used for CI pipelines)
+{% if github_user | length > 0 and github_token | length > 0 %}
+          - usernamePassword:
+              scope: GLOBAL
+              id: "github-token"
+              username: "{{ github_user }}"
+              password: "{{ github_token }}"
+              description: "GitHub PAT for Jenkins CI"
+{% endif %}
+
+          # 3. DockerHub credentials (used for building and pushing images)
+{% if dockerhub_user | length > 0 and dockerhub_token | length > 0 %}
+          - usernamePassword:
+              scope: GLOBAL
+              id: "dockerhub-cred"
+              username: "{{ dockerhub_user }}"
+              password: "{{ dockerhub_token }}"
+              description: "DockerHub Credentials for pushing images"
+{% endif %}

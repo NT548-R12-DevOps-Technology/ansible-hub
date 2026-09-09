@@ -1,0 +1,53 @@
+---
+# ===============================================================
+# Giai đoạn 1: Cấu hình chung cho toàn bộ các Nodes (Master & Workers)
+# ===============================================================
+- name: Common setup on all Jenkins nodes
+  hosts: jenkins_master:jenkins_workers
+  become: true
+  gather_facts: true
+  roles:
+    - role: jenkins/common
+      tags: common
+
+# ===============================================================
+# Giai đoạn 2: Cài đặt Docker cho toàn bộ hệ thống
+# ===============================================================
+- name: Install Docker on all nodes
+  hosts: jenkins_master:jenkins_workers
+  become: true
+  roles:
+    - role: jenkins/docker
+      tags: docker
+
+# ===============================================================
+# Giai đoạn 3: Cấu hình chi tiết cho Jenkins Master
+# ===============================================================
+- name: Install and Configure Jenkins Master
+  hosts: jenkins_master
+  become: true
+  roles:
+    - role: jenkins/controller
+      tags: jenkins_master
+    - role: jenkins/plugins
+      tags: jenkins_plugins
+
+# ===============================================================
+# Giai đoạn 4: Cấu hình chi tiết cho các Jenkins Workers (Agents)
+# ===============================================================
+- name: Install and Configure Jenkins Workers
+  hosts: jenkins_workers
+  become: true
+  roles:
+    - role: jenkins/worker
+      tags: jenkins_worker
+
+# ===============================================================
+# Giai đoạn 5: Cấu hình công cụ DevSecOps cho Worker CI
+# ===============================================================
+- name: Install DevSecOps tools on Worker CI
+  hosts: jenkins_workers
+  become: true
+  roles:
+    - role: jenkins/trivy
+      tags: trivy

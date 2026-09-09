@@ -1,0 +1,46 @@
+---
+- name: Install required packages for Jenkins repository
+  apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+    update_cache: true
+  become: true
+  tags: jenkins
+
+# Jenkins Debian repository signs packages with key 7198F4B714ABFC68.
+- name: Import Jenkins GPG key into trusted.gpg
+  apt_key:
+    id: 7198F4B714ABFC68
+    keyserver: keyserver.ubuntu.com
+    state: present
+  become: true
+  tags: jenkins
+
+- name: Add Jenkins Debian stable repository
+  apt_repository:
+    repo: "deb https://pkg.jenkins.io/debian-stable binary/"
+    filename: jenkins
+    state: present
+  become: true
+  tags: jenkins
+
+- name: Install Jenkins
+  apt:
+    name: jenkins
+    state: present
+    update_cache: true
+  become: true
+  tags: jenkins
+
+- name: Configure Jenkins to use Java 21
+  lineinfile:
+    path: /etc/default/jenkins
+    regexp: "^JAVA_HOME="
+    line: "JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64"
+    create: true
+  notify: Restart Jenkins
+  become: true
+  tags: jenkins

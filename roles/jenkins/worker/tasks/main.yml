@@ -1,0 +1,260 @@
+---
+# =========================
+# Update system
+# =========================
+- name: Update apt cache
+  apt:
+    update_cache: true
+  become: true
+  tags:
+    - jenkins_worker
+    - packages
+
+# =========================
+# Remove old Java (clean)
+# =========================
+- name: Remove old Java versions
+  apt:
+    name:
+      - openjdk-11-jdk
+      - openjdk-17-jdk
+    state: absent
+  become: true
+  tags:
+    - jenkins_worker
+    - java
+
+# =========================
+# Install Java 21 + Maven
+# =========================
+- name: Install Java 21 and build tools
+  apt:
+    name:
+      - openjdk-21-jdk
+      - maven
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+      - git
+    state: present
+  become: true
+  tags:
+    - jenkins_worker
+    - java
+    - maven
+
+# =========================
+# Set Java 21 as default
+# =========================
+- name: Set Java 21 as default
+  alternatives:
+    name: java
+    path: /usr/lib/jvm/java-21-openjdk-amd64/bin/java
+  become: true
+  tags:
+    - jenkins_worker
+    - java
+
+- name: Set Javac 21 as default
+  alternatives:
+    name: javac
+    path: /usr/lib/jvm/java-21-openjdk-amd64/bin/javac
+  become: true
+  tags:
+    - jenkins_worker
+    - java
+
+# =========================
+# Docker permission
+# =========================
+- name: Ensure docker group exists
+  group:
+    name: docker
+    state: present
+  become: true
+  tags:
+    - jenkins_worker
+    - docker
+
+- name: Add jenkins user to docker group
+  user:
+    name: jenkins
+    groups: docker
+    append: true
+  become: true
+  tags:
+    - jenkins_worker
+    - docker
+
+# =========================
+# Jenkins agent workspace
+# =========================
+- name: Create Jenkins agent directory
+  file:
+    path: /home/jenkins/jenkins-agent
+    state: directory
+    owner: jenkins
+    group: jenkins
+    mode: '0755'
+  become: true
+  tags:
+    - jenkins_worker
+    - workspace
+
+- name: Ensure Jenkins SSH directory exists
+  file:
+    path: /home/jenkins/.ssh
+    state: directory
+    owner: jenkins
+    group: jenkins
+    mode: "0700"
+  become: true
+  tags:
+    - jenkins_worker
+    - ssh
+
+- name: Authorize the Jenkins controller SSH key
+  lineinfile:
+    path: /home/jenkins/.ssh/authorized_keys
+    line: "{{ hostvars[groups['jenkins_master'][0]].jenkins_worker_public_key }}"
+    create: true
+    owner: jenkins
+    group: jenkins
+    mode: "0600"
+  become: true
+  no_log: true
+  tags:
+    - jenkins_worker
+    - ssh
+
+# =========================
+# Install yq (for GitOps)
+# =========================
+- name: Install yq binary
+  get_url:
+    url: https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+    dest: /usr/local/bin/yq
+    mode: '0755'
+  become: true
+  tags:
+    - jenkins_worker
+    - yq
+
+- name: Verify yq installation
+  command: yq --version
+  register: yq_version
+  changed_when: false
+  tags:
+    - jenkins_worker
+    - yq
+
+- name: Show yq version
+  debug:
+    msg: "{{ yq_version.stdout }}"
+  tags:
+    - jenkins_worker
+    - yq
+
+# =========================
+# Install Terraform
+# =========================
+- name: Download Terraform
+  get_url:
+    url: https://releases.hashicorp.com/terraform/1.6.6/terraform_1.6.6_linux_amd64.zip
+    dest: /tmp/terraform.zip
+  become: true
+  tags:
+    - jenkins_worker
+    - terraform
+
+- name: Unzip Terraform
+  unarchive:
+    src: /tmp/terraform.zip
+    dest: /usr/local/bin/
+    remote_src: true
+  become: true
+  tags:
+    - jenkins_worker
+    - terraform
+
+- name: Verify Terraform installation
+  command: terraform version
+  register: terraform_version
+  changed_when: false
+  tags:
+    - jenkins_worker
+    - terraform
+
+- name: Show Terraform version
+  debug:
+    msg: "{{ terraform_version.stdout }}"
+  tags:
+    - jenkins_worker
+    - terraform
+
+# =========================
+# Install TFLint
+# =========================
+- name: Install TFLint
+  shell: |
+    curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+  args:
+    creates: /usr/local/bin/tflint
+  become: true
+  tags:
+    - jenkins_worker
+    - tflint
+
+- name: Verify TFLint installation
+  command: tflint --version
+  register: tflint_version
+  changed_when: false
+  tags:
+    - jenkins_worker
+    - tflint
+
+- name: Show TFLint version
+  debug:
+    msg: "{{ tflint_version.stdout }}"
+  tags:
+    - jenkins_worker
+    - tflint
+
+# =========================
+# Install Checkov
+# =========================
+- name: Install Python3 & pip
+  apt:
+    name:
+      - python3
+      - python3-pip
+    state: present
+  become: true
+  tags:
+    - jenkins_worker
+    - checkov
+
+- name: Install Checkov via pip
+  pip:
+    name: checkov
+    executable: pip3
+  become: true
+  tags:
+    - jenkins_worker
+    - checkov
+
+- name: Verify Checkov installation
+  command: checkov --version
+  register: checkov_version
+  changed_when: false
+  tags:
+    - jenkins_worker
+    - checkov
+
+- name: Show Checkov version
+  debug:
+    msg: "{{ checkov_version.stdout }}"
+  tags:
+    - jenkins_worker
+    - checkov
