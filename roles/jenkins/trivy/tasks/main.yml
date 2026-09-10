@@ -21,7 +21,9 @@
 
 - name: Add Trivy repository
   apt_repository:
-    repo: "deb https://aquasecurity.github.io/trivy-repo/deb {{ ansible_distribution_release }} main"
+    repo: >
+      deb https://aquasecurity.github.io/trivy-repo/deb
+      {{ ansible_distribution_release }} main
     state: present
   become: true
 
