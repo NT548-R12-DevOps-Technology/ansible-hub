@@ -130,3 +130,76 @@ Default endpoints:
 ![MinIO Login](images/minio_login.png)
 
 Default credentials are defined in `roles/minio/defaults/main.yml` and should be changed before production use.
+
+### 2.6 SonarQube
+Terraform generates `inventories/staging/sonarqube.ini` with the private IP of
+the SonarQube EC2 instance. Connect to the staging VPN first, then verify the
+host is reachable:
+
+```bash
+ansible -i inventories/staging/sonarqube.ini sonarqube -m ping
+```
+
+Install SonarQube:
+
+```bash
+ansible-playbook \
+  -i inventories/staging/sonarqube.ini \
+  playbooks/sonarqube_install.yml
+```
+
+The playbook installs SonarQube Community Build natively on the EC2 instance
+with Java 21 and PostgreSQL. It also configures the required Linux kernel
+settings, creates a dedicated service user, and runs SonarQube with systemd.
+
+After installation, access the web interface through the VPN:
+
+```text
+http://10.0.23.10:9000
+```
+
+The initial administrator credentials are `admin/admin`. SonarQube requires
+the password to be changed after the first login.
+
+**SonarQube Login**
+
+![SonarQube Login](images/sonarqube_login.png)
+
+**Create a SonarQube Project**
+
+![Create a SonarQube Project](images/sonarqube_create_project.png)
+
+To check the service and startup logs:
+
+```bash
+ssh -i ../key_pair/k0s_key ubuntu@10.0.23.10
+sudo systemctl status sonarqube --no-pager
+sudo journalctl -u sonarqube -n 100 --no-pager
+```
+
+### 2.7 Jenkins
+
+Terraform generates `inventories/staging/jenkins.ini` with the private IPs of
+the Jenkins controller and worker. Connect to the staging VPN first, then run:
+
+```bash
+ansible-playbook \
+  -i inventories/staging/jenkins.ini \
+  playbooks/jenkins_install.yml
+```
+
+The playbook installs Jenkins on the controller, prepares the worker with
+Docker and CI tools, and configures controller-to-worker SSH automatically.
+
+GitHub and Docker Hub credentials are optional. To provide them through
+Ansible Vault:
+
+```bash
+cp secrets.yml.example secrets.yml
+ansible-vault encrypt secrets.yml
+ansible-playbook \
+  -i inventories/staging/jenkins.ini \
+  playbooks/jenkins_install.yml \
+  --ask-vault-pass \
+  --extra-vars @secrets.yml
+```

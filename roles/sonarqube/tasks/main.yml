@@ -1,0 +1,245 @@
+---
+- name: Verify supported operating system
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == "Ubuntu"
+      - ansible_distribution_major_version | int >= 22
+    fail_msg: "This role supports Ubuntu 22.04 or newer."
+
+- name: Validate database identifiers
+  ansible.builtin.assert:
+    that:
+      - sonarqube_db_user is match('^[a-zA-Z_][a-zA-Z0-9_]*$')
+      - sonarqube_db_name is match('^[a-zA-Z_][a-zA-Z0-9_]*$')
+    fail_msg: "SonarQube database user and database name must be valid PostgreSQL identifiers."
+
+- name: Install Java, PostgreSQL, and required packages
+  ansible.builtin.apt:
+    name:
+      - openjdk-21-jre-headless
+      - postgresql
+      - postgresql-contrib
+      - unzip
+      - curl
+      - openssl
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Enable and start PostgreSQL
+  ansible.builtin.systemd:
+    name: postgresql
+    enabled: true
+    state: started
+
+- name: Configure SonarQube kernel requirements
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-sonarqube.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      vm.max_map_count=524288
+      fs.file-max=131072
+  notify: Apply SonarQube sysctl settings
+
+- name: Create SonarQube group
+  ansible.builtin.group:
+    name: "{{ sonarqube_group }}"
+    system: true
+    state: present
+
+- name: Create SonarQube service user
+  ansible.builtin.user:
+    name: "{{ sonarqube_user }}"
+    group: "{{ sonarqube_group }}"
+    home: "{{ sonarqube_home }}"
+    shell: /usr/sbin/nologin
+    system: true
+    create_home: false
+    state: present
+
+- name: Create SonarQube runtime directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ sonarqube_user }}"
+    group: "{{ sonarqube_group }}"
+    mode: "0750"
+  loop:
+    - "{{ sonarqube_data_dir }}"
+    - "{{ sonarqube_temp_dir }}"
+    - "{{ sonarqube_log_dir }}"
+
+- name: Check installed SonarQube version
+  ansible.builtin.stat:
+    path: "{{ sonarqube_version_dir }}/lib/sonar-application-{{ sonarqube_version }}.jar"
+  register: sonarqube_version_install
+
+- name: Download SonarQube Community Build
+  ansible.builtin.get_url:
+    url: "{{ sonarqube_download_url }}"
+    dest: "{{ sonarqube_archive_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: not sonarqube_version_install.stat.exists
+
+- name: Extract SonarQube
+  ansible.builtin.unarchive:
+    src: "{{ sonarqube_archive_path }}"
+    dest: "{{ sonarqube_install_root }}"
+    owner: "{{ sonarqube_user }}"
+    group: "{{ sonarqube_group }}"
+    remote_src: true
+    creates: "{{ sonarqube_version_dir }}/lib/sonar-application-{{ sonarqube_version }}.jar"
+  when: not sonarqube_version_install.stat.exists
+
+- name: Remove downloaded SonarQube archive
+  ansible.builtin.file:
+    path: "{{ sonarqube_archive_path }}"
+    state: absent
+
+- name: Set ownership on SonarQube installation
+  ansible.builtin.file:
+    path: "{{ sonarqube_version_dir }}"
+    state: directory
+    owner: "{{ sonarqube_user }}"
+    group: "{{ sonarqube_group }}"
+    recurse: true
+  when: not sonarqube_version_install.stat.exists
+
+- name: Point current SonarQube path to installed version
+  ansible.builtin.file:
+    src: "{{ sonarqube_version_dir }}"
+    dest: "{{ sonarqube_home }}"
+    state: link
+    force: true
+  notify: Restart SonarQube
+
+- name: Create SonarQube secret directory
+  ansible.builtin.file:
+    path: "{{ sonarqube_db_secret_file | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Generate persistent PostgreSQL password
+  ansible.builtin.shell: |
+    set -o errexit
+    umask 077
+    openssl rand -hex 32 > "{{ sonarqube_db_secret_file }}"
+  args:
+    executable: /bin/bash
+    creates: "{{ sonarqube_db_secret_file }}"
+  no_log: true
+
+- name: Read PostgreSQL password
+  ansible.builtin.slurp:
+    src: "{{ sonarqube_db_secret_file }}"
+  register: sonarqube_db_password_file
+  no_log: true
+
+- name: Store PostgreSQL password for configuration
+  ansible.builtin.set_fact:
+    sonarqube_db_password: "{{ sonarqube_db_password_file.content | b64decode | trim }}"
+  no_log: true
+
+- name: Check SonarQube PostgreSQL role
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - -tAc
+      - "SELECT 1 FROM pg_roles WHERE rolname='{{ sonarqube_db_user }}'"
+  register: sonarqube_db_role
+  changed_when: false
+
+- name: Create SonarQube PostgreSQL role
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - -v
+      - ON_ERROR_STOP=1
+      - -c
+      - "CREATE USER {{ sonarqube_db_user }} WITH ENCRYPTED PASSWORD '{{ sonarqube_db_password }}'"
+  when: sonarqube_db_role.stdout | trim != "1"
+  no_log: true
+
+- name: Check SonarQube PostgreSQL database
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - psql
+      - -tAc
+      - "SELECT 1 FROM pg_database WHERE datname='{{ sonarqube_db_name }}'"
+  register: sonarqube_database
+  changed_when: false
+
+- name: Create SonarQube PostgreSQL database
+  ansible.builtin.command:
+    argv:
+      - runuser
+      - -u
+      - postgres
+      - --
+      - createdb
+      - --owner
+      - "{{ sonarqube_db_user }}"
+      - --encoding
+      - UTF8
+      - "{{ sonarqube_db_name }}"
+  when: sonarqube_database.stdout | trim != "1"
+
+- name: Configure SonarQube
+  ansible.builtin.template:
+    src: sonar.properties.j2
+    dest: "{{ sonarqube_version_dir }}/conf/sonar.properties"
+    owner: "{{ sonarqube_user }}"
+    group: "{{ sonarqube_group }}"
+    mode: "0600"
+  notify: Restart SonarQube
+  no_log: true
+
+- name: Install SonarQube systemd service
+  ansible.builtin.template:
+    src: sonarqube.service.j2
+    dest: /etc/systemd/system/sonarqube.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart SonarQube
+
+- name: Apply pending SonarQube handlers
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start SonarQube
+  ansible.builtin.systemd:
+    name: sonarqube
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Wait for SonarQube API to become ready
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ sonarqube_web_port }}/api/system/status"
+    method: GET
+    return_content: true
+    status_code: 200
+  register: sonarqube_api_status
+  until:
+    - sonarqube_api_status.status == 200
+    - sonarqube_api_status.json.status == "UP"
+  retries: "{{ sonarqube_wait_retries }}"
+  delay: "{{ sonarqube_wait_delay }}"

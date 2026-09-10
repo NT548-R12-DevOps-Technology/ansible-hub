@@ -1,0 +1,24 @@
+[Unit]
+Description=SonarQube Community Build
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User={{ sonarqube_user }}
+Group={{ sonarqube_group }}
+WorkingDirectory={{ sonarqube_home }}
+ExecStart=/usr/bin/java -Xms32m -Xmx32m -Djava.net.preferIPv4Stack=true -jar {{ sonarqube_home }}/lib/sonar-application-{{ sonarqube_version }}.jar
+StandardOutput=journal
+StandardError=journal
+LimitNOFILE=131072
+LimitNPROC=8192
+TimeoutStartSec=300
+TimeoutStopSec=3600
+Restart=on-failure
+RestartSec=10
+SuccessExitStatus=143
+
+[Install]
+WantedBy=multi-user.target

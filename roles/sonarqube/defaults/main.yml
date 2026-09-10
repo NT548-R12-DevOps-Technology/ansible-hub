@@ -1,0 +1,25 @@
+---
+sonarqube_version: "26.9.0.129388"
+sonarqube_download_url: "https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-{{ sonarqube_version }}.zip"
+
+sonarqube_user: sonarqube
+sonarqube_group: sonarqube
+sonarqube_install_root: /opt
+sonarqube_version_dir: "{{ sonarqube_install_root }}/sonarqube-{{ sonarqube_version }}"
+sonarqube_home: "{{ sonarqube_install_root }}/sonarqube"
+sonarqube_archive_path: "/tmp/sonarqube-{{ sonarqube_version }}.zip"
+
+sonarqube_data_dir: /var/lib/sonarqube/data
+sonarqube_temp_dir: /var/lib/sonarqube/temp
+sonarqube_log_dir: /var/log/sonarqube
+
+sonarqube_db_user: sonar
+sonarqube_db_name: sonarqube
+sonarqube_db_host: 127.0.0.1
+sonarqube_db_port: 5432
+sonarqube_db_secret_file: /etc/sonarqube/db-password
+
+sonarqube_web_host: 0.0.0.0
+sonarqube_web_port: 9000
+sonarqube_wait_retries: 60
+sonarqube_wait_delay: 10

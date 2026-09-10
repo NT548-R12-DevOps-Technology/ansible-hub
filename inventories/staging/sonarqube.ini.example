@@ -1,0 +1,2 @@
+[sonarqube]
+sonarqube-server ansible_host=10.0.23.10 ansible_user=ubuntu
