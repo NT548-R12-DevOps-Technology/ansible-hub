@@ -1,0 +1,11 @@
+---
+snyk_cli_version: "1.1307.0"
+snyk_cli_install_path: /usr/local/bin/snyk
+
+snyk_cli_assets:
+  x86_64:
+    filename: snyk-linux
+    checksum: "65fc01c378bd71f08cff214f7f8f91be907a27aa18b9649296cd8606adce245e"
+  aarch64:
+    filename: snyk-linux-arm64
+    checksum: "3cefc616f8bbdad152b4df13f369cec7c4821aeb20548517e99810ec4b299d71980"

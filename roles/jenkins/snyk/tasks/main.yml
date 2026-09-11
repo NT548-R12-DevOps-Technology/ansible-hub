@@ -1,0 +1,29 @@
+---
+- name: Verify supported architecture for Snyk CLI
+  ansible.builtin.assert:
+    that:
+      - ansible_architecture in snyk_cli_assets
+    fail_msg: "Snyk CLI installation does not support architecture {{ ansible_architecture }}."
+
+- name: Install pinned Snyk CLI binary
+  ansible.builtin.get_url:
+    url: "https://downloads.snyk.io/cli/v{{ snyk_cli_version }}/{{ snyk_cli_assets[ansible_architecture].filename }}"
+    dest: "{{ snyk_cli_install_path }}"
+    owner: root
+    group: root
+    mode: "0755"
+    checksum: "sha256:{{ snyk_cli_assets[ansible_architecture].checksum }}"
+  become: true
+
+- name: Verify Snyk CLI installation
+  ansible.builtin.command:
+    argv:
+      - "{{ snyk_cli_install_path }}"
+      - --version
+  register: snyk_cli_version_result
+  changed_when: false
+  failed_when: snyk_cli_version_result.stdout | trim != snyk_cli_version
+
+- name: Show installed Snyk CLI version
+  ansible.builtin.debug:
+    msg: "Snyk CLI {{ snyk_cli_version_result.stdout | trim }} is installed."

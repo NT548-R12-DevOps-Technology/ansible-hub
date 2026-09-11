@@ -1,0 +1,4 @@
+---
+jenkins_ubuntu_archive_mirror: archive.ubuntu.com
+jenkins_apt_retries: 5
+
