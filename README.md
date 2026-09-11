@@ -158,16 +158,26 @@ After installation, access the web interface through the VPN:
 http://10.0.23.10:9000
 ```
 
-The initial administrator credentials are `admin/admin`. SonarQube requires
-the password to be changed after the first login.
-
 **SonarQube Login**
 
 ![SonarQube Login](images/sonarqube_login.png)
+**SonarQube Projects Dashboard**
+
+![SonarQube Projects Dashboard](images/sonarqube_projects_dashboard.png)
+
+The initial administrator credentials are `admin/admin`. SonarQube requires
+the password to be changed after the first login.
 
 **Create a SonarQube Project**
 
 ![Create a SonarQube Project](images/sonarqube_create_project.png)
+
+**Create a SonarQube Analysis Token**
+
+Open **My Account > Security** and generate a Global Analysis Token for
+Jenkins. Store the token in Ansible Vault as `sonarqube_token`.
+
+![Create a SonarQube Analysis Token](images/sonarqube_analysis_token.png)
 
 To check the service and startup logs:
 
@@ -191,7 +201,19 @@ ansible-playbook \
 The playbook installs Jenkins on the controller, prepares the worker with
 Docker and CI tools, and configures controller-to-worker SSH automatically.
 
-GitHub and Docker Hub credentials are optional. To provide them through
+After Jenkins starts, open `http://10.0.22.10:8080`. Retrieve the initial
+administrator password from the controller with:
+
+```bash
+ansible \
+  -i inventories/staging/jenkins.ini \
+  jenkins_master \
+  --become \
+  -m command \
+  -a "cat /var/lib/jenkins/secrets/initialAdminPassword"
+```
+
+Credentials are optional (GitHub, Docker Hub, SonarQube, Snyk, and others). To provide them through
 Ansible Vault:
 
 ```bash
@@ -203,3 +225,46 @@ ansible-playbook \
   --ask-vault-pass \
   --extra-vars @secrets.yml
 ```
+
+### 2.8 Snyk
+
+Snyk CLI runs on the Jenkins worker. The Snyk API token is stored in the
+encrypted `secrets.yml` file and provisioned on the Jenkins controller as a
+Secret text credential with the ID `snyk-token`.
+
+Create an API token in Snyk, then add it to the existing Vault file:
+
+```bash
+EDITOR=nano ansible-vault edit secrets.yml
+```
+
+```yaml
+snyk_token: "<SNYK_API_TOKEN>"
+```
+
+Apply the Jenkins playbook to install Snyk CLI on the worker and update the
+Jenkins credential:
+
+```bash
+ansible-playbook \
+  -i inventories/staging/jenkins.ini \
+  playbooks/jenkins_install.yml \
+  --ask-vault-pass \
+  --extra-vars @secrets.yml
+```
+
+Verify the CLI installation on the Jenkins worker:
+
+```bash
+ansible \
+  -i inventories/staging/jenkins.ini \
+  jenkins_workers \
+  --become \
+  -a "snyk --version"
+```
+
+The application `Jenkinsfile` injects `snyk-token` only while the Snyk
+dependency stage is running. It scans each service dependency manifest before
+the image is built. A High or Critical vulnerability fails that service
+pipeline, and `snyk monitor` publishes the latest result to Snyk.io. Trivy
+scans the built container image separately.
