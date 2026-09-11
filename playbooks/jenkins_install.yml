@@ -51,3 +51,5 @@
   roles:
     - role: jenkins/trivy
       tags: trivy
+    - role: jenkins/snyk
+      tags: snyk

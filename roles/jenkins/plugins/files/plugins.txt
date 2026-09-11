@@ -4,6 +4,7 @@ ssh-slaves
 git
 workflow-aggregator
 docker-workflow
+pipeline-graph-view
 
 ansicolor
 

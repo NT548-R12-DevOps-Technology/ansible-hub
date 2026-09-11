@@ -1,10 +1,41 @@
+---
+- name: Check Ubuntu APT source files
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /etc/apt/sources.list
+    - /etc/apt/sources.list.d/ubuntu.sources
+  register: jenkins_apt_source_files
+
+- name: Replace unavailable EC2 regional Ubuntu mirror
+  ansible.builtin.replace:
+    path: "{{ item.item }}"
+    regexp: '(?:[a-z0-9-]+\.)?ec2\.archive\.ubuntu\.com'
+    replace: "{{ jenkins_ubuntu_archive_mirror }}"
+  loop: "{{ jenkins_apt_source_files.results }}"
+  when: item.stat.exists
+
+- name: Configure APT download retries
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/80-jenkins-retries
+    content: |
+      Acquire::Retries "{{ jenkins_apt_retries }}";
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Update apt cache
-  apt:
+  ansible.builtin.apt:
     update_cache: true
-  become: true
+    cache_valid_time: 3600
+    lock_timeout: 300
+  register: jenkins_apt_cache_update
+  retries: "{{ jenkins_apt_retries }}"
+  delay: 10
+  until: jenkins_apt_cache_update is succeeded
 
 - name: Install common packages
-  apt:
+  ansible.builtin.apt:
     name:
       - ca-certificates
       - curl
@@ -12,13 +43,11 @@
       - lsb-release
       - unzip
     state: present
-  become: true
 
 - name: Ensure Jenkins user exists on every Jenkins node
-  user:
+  ansible.builtin.user:
     name: jenkins
     home: /home/jenkins
     shell: /bin/bash
     create_home: true
     state: present
-  become: true

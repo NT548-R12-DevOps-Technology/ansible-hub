@@ -58,3 +58,21 @@ credentials:
               password: "{{ dockerhub_token }}"
               description: "DockerHub Credentials for pushing images"
 {% endif %}
+
+          # 4. Snyk token injected into security scan stages
+{% if snyk_token | length > 0 %}
+          - string:
+              scope: GLOBAL
+              id: "snyk-token"
+              secret: {{ snyk_token | to_json }}
+              description: "Snyk token for Jenkins security scans"
+{% endif %}
+
+          # 5. SonarQube token injected into code analysis stages
+{% if sonarqube_token | length > 0 %}
+          - string:
+              scope: GLOBAL
+              id: "sonarqube-token"
+              secret: {{ sonarqube_token | to_json }}
+              description: "SonarQube global analysis token for Jenkins"
+{% endif %}

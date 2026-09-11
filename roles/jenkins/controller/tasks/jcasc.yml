@@ -59,7 +59,7 @@
     state: directory
     owner: jenkins
     group: jenkins
-    mode: "0755"
+    mode: "0700"
   become: true
   tags: jcasc
 
@@ -69,8 +69,9 @@
     dest: /var/lib/jenkins/casc_configs/jenkins.yaml
     owner: jenkins
     group: jenkins
-    mode: "0644"
+    mode: "0600"
   become: true
+  no_log: true
   notify: Restart Jenkins
   tags: jcasc
 
