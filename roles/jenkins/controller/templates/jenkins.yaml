@@ -76,3 +76,32 @@ credentials:
               secret: {{ sonarqube_token | to_json }}
               description: "SonarQube global analysis token for Jenkins"
 {% endif %}
+
+
+          # 6. Telegram Bot credentials used to deliver Trivy reports
+{% if trivy_telegram_bot_token | length > 0 and trivy_telegram_chat_id | string | length > 0 %}
+          - string:
+              scope: GLOBAL
+              id: "trivy-telegram-bot-token"
+              secret: {{ trivy_telegram_bot_token | to_json }}
+              description: "Telegram bot token for Trivy reports"
+          - string:
+              scope: GLOBAL
+              id: "trivy-telegram-chat-id"
+              secret: {{ trivy_telegram_chat_id | string | to_json }}
+              description: "Telegram destination chat ID for Trivy reports"
+{% endif %}
+
+          # 7. Telegram Bot credentials used to deliver Snyk reports
+{% if snyk_telegram_bot_token | length > 0 and snyk_telegram_chat_id | string | length > 0 %}
+          - string:
+              scope: GLOBAL
+              id: "snyk-telegram-bot-token"
+              secret: {{ snyk_telegram_bot_token | to_json }}
+              description: "Telegram bot token for Snyk reports"
+          - string:
+              scope: GLOBAL
+              id: "snyk-telegram-chat-id"
+              secret: {{ snyk_telegram_chat_id | string | to_json }}
+              description: "Telegram destination chat ID for Snyk reports"
+{% endif %}

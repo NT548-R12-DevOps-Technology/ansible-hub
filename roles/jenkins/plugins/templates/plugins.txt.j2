@@ -1,0 +1,9 @@
+{% for plugin in lookup('file', role_path + '/files/plugins.txt').splitlines() %}
+{% if plugin == 'pipeline-graph-view' %}
+{{ plugin }}:{{ jenkins_pipeline_graph_view_version }}
+{% elif plugin == 'trilead-api' %}
+{{ plugin }}:{{ jenkins_trilead_api_version }}
+{% else %}
+{{ plugin }}
+{% endif %}
+{% endfor %}

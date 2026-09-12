@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-Ansible Hub centralizes playbooks and roles to automate K0s, Observability, OpenVPN, and related components. The goal is to standardize deployment, make it easy to extend, and simplify troubleshooting.
+Ansible Hub centralizes playbooks and roles to automate K0s, Observability, OpenVPN, and related components. The goal is to standardize deployment, make it easy to extend, and simplify troubleshooting ^^.
 
 ## 2. Configuration Details
 
@@ -240,7 +240,15 @@ EDITOR=nano ansible-vault edit secrets.yml
 
 ```yaml
 snyk_token: "<SNYK_API_TOKEN>"
+trivy_telegram_bot_token: "<TRIVY_BOT_TOKEN>"
+trivy_telegram_chat_id: "<TRIVY_CHAT_ID>"
+snyk_telegram_bot_token: "<SNYK_BOT_TOKEN>"
+snyk_telegram_chat_id: "<SNYK_CHAT_ID>"
 ```
+
+Trivy and Snyk use separate Telegram bots. Jenkins stores them as four Secret
+text credentials: `trivy-telegram-bot-token`, `trivy-telegram-chat-id`,
+`snyk-telegram-bot-token`, and `snyk-telegram-chat-id`.
 
 Apply the Jenkins playbook to install Snyk CLI on the worker and update the
 Jenkins credential:
@@ -265,6 +273,7 @@ ansible \
 
 The application `Jenkinsfile` injects `snyk-token` only while the Snyk
 dependency stage is running. It scans each service dependency manifest before
-the image is built. A High or Critical vulnerability fails that service
-pipeline, and `snyk monitor` publishes the latest result to Snyk.io. Trivy
-scans the built container image separately.
+the image is built. High or Critical findings mark the Snyk stage unstable,
+`snyk monitor` publishes the latest result to Snyk.io, and Jenkins sends the
+combined CSV report through the dedicated Snyk Telegram bot. Trivy scans the
+built container image and sends its HTML report through the separate Trivy bot.

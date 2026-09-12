@@ -1,5 +1,6 @@
 configuration-as-code
 ssh-slaves
+trilead-api
 
 git
 workflow-aggregator

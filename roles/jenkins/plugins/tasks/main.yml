@@ -52,32 +52,102 @@
   tags: jenkins_plugins
 
 
-# 5. Copy plugin list
-- name: Copy Jenkins plugin list
-  copy:
-    src: plugins.txt
+# 5. Render plugin list with centrally managed pinned versions
+- name: Render Jenkins plugin list
+  template:
+    src: plugins.txt.j2
     dest: /var/lib/jenkins/plugins.txt
     owner: jenkins
     group: jenkins
     mode: '0644'
+  register: jenkins_plugin_list
   become: true
   tags: jenkins_plugins
 
 
-# 6. Install Jenkins plugins (idempotent)
+# 6. Detect and replace the broken Pipeline Graph View release
+- name: Read installed Pipeline Graph View version
+  shell: >
+    sed -n 's/^Plugin-Version: //p'
+    /var/lib/jenkins/plugins/pipeline-graph-view/META-INF/MANIFEST.MF
+    2>/dev/null | tr -d '\r' | head -n 1
+  register: jenkins_pipeline_graph_view_installed
+  changed_when: false
+  failed_when: false
+  become: true
+  tags: jenkins_plugins
+
+- name: Remove incompatible Pipeline Graph View plugin files
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /var/lib/jenkins/plugins/pipeline-graph-view
+    - /var/lib/jenkins/plugins/pipeline-graph-view.jpi
+    - /var/lib/jenkins/plugins/pipeline-graph-view.hpi
+    - /var/lib/jenkins/plugins/pipeline-graph-view.jpi.pinned
+    - /var/lib/jenkins/plugins/pipeline-graph-view.hpi.pinned
+  when:
+    - jenkins_pipeline_graph_view_installed.stdout | length > 0
+    - jenkins_pipeline_graph_view_installed.stdout != jenkins_pipeline_graph_view_version
+  register: jenkins_pipeline_graph_view_cleanup
+  become: true
+  tags: jenkins_plugins
+
+- name: Read installed Trilead API version
+  shell: >
+    sed -n 's/^Plugin-Version: //p'
+    /var/lib/jenkins/plugins/trilead-api/META-INF/MANIFEST.MF
+    2>/dev/null | tr -d '\r' | head -n 1
+  register: jenkins_trilead_api_installed
+  changed_when: false
+  failed_when: false
+  become: true
+  tags: jenkins_plugins
+
+- name: Remove incompatible Trilead API plugin files
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /var/lib/jenkins/plugins/trilead-api
+    - /var/lib/jenkins/plugins/trilead-api.jpi
+    - /var/lib/jenkins/plugins/trilead-api.hpi
+    - /var/lib/jenkins/plugins/trilead-api.jpi.pinned
+    - /var/lib/jenkins/plugins/trilead-api.hpi.pinned
+  when:
+    - jenkins_trilead_api_installed.stdout | length > 0
+    - jenkins_trilead_api_installed.stdout != jenkins_trilead_api_version
+  register: jenkins_trilead_api_cleanup
+  become: true
+  tags: jenkins_plugins
+
+- name: Check plugin installation marker
+  stat:
+    path: /var/lib/jenkins/plugins/.plugins_installed
+  register: jenkins_plugin_marker
+  become: true
+  tags: jenkins_plugins
+
+# 7. Install Jenkins plugins (idempotent)
 - name: Install Jenkins plugins
   command: >
     java -jar /opt/jenkins/jenkins-plugin-manager.jar
     --plugin-file /var/lib/jenkins/plugins.txt
     --plugin-download-directory /var/lib/jenkins/plugins
-  args:
-    creates: /var/lib/jenkins/plugins/.plugins_installed
+    --latest=false
+  when: >-
+    jenkins_plugin_list.changed or
+    jenkins_pipeline_graph_view_cleanup.changed or
+    jenkins_trilead_api_cleanup.changed or
+    not jenkins_plugin_marker.stat.exists
+  register: jenkins_plugins_install
   notify: Restart Jenkins
   become: true
   tags: jenkins_plugins
 
 
-# 7. Mark plugin installation as done
+# 8. Mark plugin installation as done
 - name: Mark plugin installation done
   file:
     path: /var/lib/jenkins/plugins/.plugins_installed
@@ -85,5 +155,6 @@
     owner: jenkins
     group: jenkins
     mode: '0644'
+  when: jenkins_plugins_install.changed
   become: true
   tags: jenkins_plugins

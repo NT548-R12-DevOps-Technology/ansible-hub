@@ -1,1 +1,8 @@
 jenkins_url: http://localhost:8080
+
+# pipeline-graph-view 949+ calls /stages/pauseState
+# after completion and breaks rendering with the current workflow-cps. Pin the last pre-pause release.
+jenkins_pipeline_graph_view_version: "940.v790e7a_c51722"
+
+# Fixes the SFTP invalid-len failure when SSHLauncher copies remoting.jar.
+jenkins_trilead_api_version: "2.284.v1974ea_324382"
